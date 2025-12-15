@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="{{language}}" class="{{default_theme}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>{{title}}</title>
+    {{#if base_url}}
+    <base href="{{base_url}}">
+    {{/if}}
+    
+    <!-- Swagger UI CSS -->
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@4.5.0/swagger-ui.css">
+    
+    <link rel="stylesheet" href="{{path_to_root}}book.css">
+    <script src="{{path_to_root}}highlight.js"></script>
+    <script src="{{path_to_root}}book.js"></script>
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+        <div class="sidebar-scrollbox">
+            {{#toc}}{{/toc}}
+        </div>
+        <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+    </nav>
+
+    <!-- Page content -->
+    <div id="page-wrapper" class="page-wrapper">
+        <div class="page">
+            {{> header}}
+            <div id="menu-bar-hover-placeholder"></div>
+            <div id="menu-bar" class="menu-bar sticky">
+                <div class="left-buttons">
+                    <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                        <i class="fa fa-bars"></i>
+                    </button>
+                    <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-pressed="false">
+                        <i class="fa fa-paint-brush"></i>
+                    </button>
+                </div>
+                <h1 class="menu-title">{{book_title}}</h1>
+                <div class="right-buttons">
+                    {{#if search_enabled}}
+                    <a href="{{path_to_root}}search.html" title="Search" aria-label="Search">
+                        <i id="search-button" class="fa fa-search" aria-hidden="true"></i>
+                    </a>
+                    {{/if}}
+                    <a href="{{path_to_root}}print.html" title="Print this book" aria-label="Print this book">
+                        <i id="print-button" class="fa fa-print" aria-hidden="true"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div id="content">
+                <!-- Основной контент -->
+                {{{content}}}
+                
+                <!-- Контейнер для Swagger UI -->
+                <div id="swagger-ui-container" style="display: none;">
+                    <div id="swagger-ui"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Swagger UI JS -->
+    <script src="https://unpkg.com/swagger-ui-dist@4.5.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@4.5.0/swagger-ui-standalone-preset.js"></script>
+    
+    <script>
+        // Показать Swagger UI при загрузке страницы
+        window.addEventListener('DOMContentLoaded', (event) => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('swagger') === 'true') {
+                document.getElementById('content').style.display = 'none';
+                document.getElementById('swagger-ui-container').style.display = 'block';
+                
+                // Инициализация Swagger UI
+                const ui = SwaggerUIBundle({
+                    url: "{{path_to_root}}static/swagger/swagger.yaml",
+                    dom_id: '#swagger-ui',
+                    presets: [
+                        SwaggerUIBundle.presets.apis,
+                        SwaggerUIStandalonePreset
+                    ],
+                    layout: "StandaloneLayout"
+                });
+            }
+        });
+    </script>
+</body>
+</html>
