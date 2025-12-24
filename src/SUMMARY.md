@@ -9,4 +9,5 @@
 - [BPMN](BPMN_diagramm.md)
 - [Компонентная схема](K_schema.md)
 - [Swagger](Swagger.md)
+- [Мотивация выбора баз данных и механик коммуникаций](ARD.md)
 - [Статья](article.md)
