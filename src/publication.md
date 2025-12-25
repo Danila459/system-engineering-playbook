@@ -1,6 +1,6 @@
 # Использование ИИ для прогнозирования заболеваний позвоночного столба
 
-<p>Ссылка: https://vc.ru/id5595854/2665363-ii-v-diagnostike-zabolevaniy-pozvonochnika</p>
+<p>Ссылка: <a href="https://vc.ru/id5595854/2665363-ii-v-diagnostike-zabolevaniy-pozvonochnika">https://vc.ru/id5595854/2665363-ii-v-diagnostike-zabolevaniy-pozvonochnika</p>
 
 <div style="max-width: 800px; margin: 0 auto; line-height: 1.6;">
 
