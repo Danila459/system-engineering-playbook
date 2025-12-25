@@ -7,7 +7,7 @@
 - [DFD](DFD_diagramm.md)
 - [UML](UML_diagramm.md)
 - [Компонентная схема](K_schema.md)
-- [Swagger](Swagger.md)
 - [Мотивация выбора баз данных и механик коммуникаций](ARD.md)
+- [Swagger](Swagger.md)
 - [Статья](article.md)
 - [Публикация](publication.md)
