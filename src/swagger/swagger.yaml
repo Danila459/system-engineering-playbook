@@ -1,0 +1,1772 @@
+openapi: 3.0.3
+info:
+  title: Spine Pathology Simulator & 3D Model Builder API
+  description: |
+    # API для симулятора прогнозирования заболеваний позвоночника
+
+    **Основные возможности:**
+    *   **Анализ рентген-снимков:** Загрузка и автоматический анализ медицинских изображений для выявления патологий (сколиоз, остеохондроз, спондилолистез и др.).
+    *   **Построение 3D-модели:** Генерация персональной трехмерной модели позвоночного столба на основе данных снимков.
+    *   **Прогнозирование и симуляция:** Расчет углов искривления, прогноз развития состояния, симуляция различных сценариев (например, эффект от планируемой операции или терапии).
+    *   **Управление исследованиями:** Хранение истории исследований и моделей для каждого пациента.
+
+    **Важно:** Для работы с эндпоинтами загрузки изображений и 3D-моделей требуется аутентификация (API Key в заголовке `X-API-Key`).
+  version: 1.2.0
+  contact:
+    name: SpineHealth Tech Team
+    email: support@spinehealth-sim.com
+  license:
+    name: Proprietary
+    url: https://spinehealth-sim.com/license
+
+servers:
+  - url: https://api.spinehealth-sim.com/v1
+    description: Production server
+  - url: https://sandbox.api.spinehealth-sim.com/v1
+    description: Sandbox server for testing
+
+tags:
+  - name: Анализ изображений
+    description: Загрузка и анализ рентген-снимков.
+  - name: 3D Модели
+    description: Работа с трехмерными моделями позвоночника.
+  - name: Прогнозы и Симуляции
+    description: Получение прогнозов и запуск симуляций.
+  - name: Пациенты и Исследования
+    description: Управление данными пациентов и их исследований.
+  - name: Сравнительный анализ
+    description: Сравнение моделей и исследований во времени.
+  - name: Аннотации и комментарии
+    description: Работа с пометками и заключениями врачей.
+  - name: Экспорт и отчеты
+    description: Генерация отчетов в различных форматах.
+  - name: Системные
+    description: Проверка состояния API.
+
+paths:
+
+  # ==================== СИСТЕМНЫЕ ЭНДПОИНТЫ ====================
+  /health:
+    get:
+      tags:
+        - Системные
+      summary: Проверка состояния API
+      description: Возвращает текущий статус работы сервиса.
+      responses:
+        '200':
+          description: Сервис работает нормально
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T12:00:00Z"
+                  version:
+                    type: string
+                    example: "1.2.0"
+                  uptime:
+                    type: number
+                    description: Время работы сервиса в секундах
+                    example: 86400
+        '503':
+          description: Сервис временно недоступен
+
+  /status:
+    get:
+      tags:
+        - Системные
+      summary: Получить детальный статус системы
+      description: Возвращает статус всех компонентов системы.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Статус компонентов системы
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+
+  # ==================== ПАЦИЕНТЫ И ИССЛЕДОВАНИЯ ====================
+  /patients:
+    get:
+      tags:
+        - Пациенты и Исследования
+      summary: Получить список пациентов
+      description: Возвращает список пациентов с пагинацией.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Поиск по имени или ID пациента
+      responses:
+        '200':
+          description: Список пациентов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  patients:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Patient'
+                  total:
+                    type: integer
+                    example: 150
+                  limit:
+                    type: integer
+                    example: 20
+                  offset:
+                    type: integer
+                    example: 0
+
+    post:
+      tags:
+        - Пациенты и Исследования
+      summary: Создать нового пациента
+      description: Регистрация нового пациента в системе.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientCreate'
+      responses:
+        '201':
+          description: Пациент успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '400':
+          description: Неверные данные пациента
+
+  /patients/{patient_id}:
+    get:
+      tags:
+        - Пациенты и Исследования
+      summary: Получить информацию о пациенте
+      description: Возвращает полную информацию о пациенте.
+      parameters:
+        - name: patient_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID пациента
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Информация о пациенте
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '404':
+          description: Пациент не найден
+
+    put:
+      tags:
+        - Пациенты и Исследования
+      summary: Обновить информацию о пациенте
+      description: Обновляет данные пациента.
+      parameters:
+        - name: patient_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientUpdate'
+      responses:
+        '200':
+          description: Данные пациента обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '404':
+          description: Пациент не найден
+
+    delete:
+      tags:
+        - Пациенты и Исследования
+      summary: Удалить пациента
+      description: Удаляет пациента и все связанные данные (требует подтверждения).
+      parameters:
+        - name: patient_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '204':
+          description: Пациент удален
+        '404':
+          description: Пациент не найден
+
+  /patients/{patient_id}/studies:
+    get:
+      tags:
+        - Пациенты и Исследования
+      summary: Получить список исследований пациента
+      description: Возвращает все исследования конкретного пациента.
+      parameters:
+        - name: patient_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Список исследований
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  studies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Study'
+                  total:
+                    type: integer
+
+  /studies/{study_id}:
+    get:
+      tags:
+        - Пациенты и Исследования
+      summary: Получить детальную информацию об исследовании
+      description: Возвращает полную информацию об исследовании включая все анализы и модели.
+      parameters:
+        - name: study_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Информация об исследовании
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudyDetail'
+
+  # ==================== АНАЛИЗ ИЗОБРАЖЕНИЙ ====================
+  /analysis/upload:
+    post:
+      tags:
+        - Анализ изображений
+      summary: Загрузка и анализ нового рентген-снимка
+      description: |
+        Загрузите один или несколько рентген-снимков (в боковой и передне-задней проекциях) для анализа.
+        Система автоматически определит ключевые точки позвоночника, рассчитает углы (Кобба, кифоза, лордоза) и выявит потенциальные аномалии.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - patient_id
+                - images
+              properties:
+                patient_id:
+                  type: string
+                  description: Уникальный идентификатор пациента в вашей системе.
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: |
+                    Массив файлов изображений. Поддерживаемые форматы: DICOM, JPEG, PNG.
+                    Рекомендуется загружать как минимум 2 проекции.
+                metadata:
+                  type: object
+                  description: Дополнительные метаданные (проекция, дата съемки, комментарий врача).
+                  properties:
+                    projection:
+                      type: string
+                      enum: [ap, lateral, oblique]
+                    study_date:
+                      type: string
+                      format: date
+                    technician_notes:
+                      type: string
+      responses:
+        '202':
+          description: Запрос принят в обработку. Используйте `analysis_id` из ответа для проверки статуса.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisJobCreated'
+        '400':
+          description: Неверный формат запроса или изображения.
+        '401':
+          description: API ключ не предоставлен или неверен.
+
+  /analysis/batch:
+    post:
+      tags:
+        - Анализ изображений
+      summary: Пакетная загрузка изображений
+      description: Загрузка нескольких исследований за один запрос.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - patient_id
+                - studies
+              properties:
+                patient_id:
+                  type: string
+                studies:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      study_date:
+                        type: string
+                        format: date
+                      images:
+                        type: array
+                        items:
+                          type: string
+                          format: binary
+                      metadata:
+                        type: object
+      responses:
+        '202':
+          description: Пакетная обработка запущена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batch_id:
+                    type: string
+                  status_url:
+                    type: string
+                    format: uri
+
+  /analysis/{analysis_id}:
+    get:
+      tags:
+        - Анализ изображений
+      summary: Получить результаты анализа
+      description: Получить детальные результаты анализа по `analysis_id`.
+      parameters:
+        - name: analysis_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID анализа, полученный при загрузке.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Успешный запрос. Возвращает полные результаты анализа.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResult'
+        '202':
+          description: Анализ все еще выполняется.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "processing"
+                  progress:
+                    type: number
+                    minimum: 0
+                    maximum: 100
+                    example: 75
+        '404':
+          description: Анализ с указанным ID не найден.
+
+  /analysis/{analysis_id}/annotate:
+    post:
+      tags:
+        - Анализ изображений
+        - Аннотации и комментарии
+      summary: Добавить аннотацию к анализу
+      description: Добавляет врачебную аннотацию к результатам анализа.
+      parameters:
+        - name: analysis_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationCreate'
+      responses:
+        '201':
+          description: Аннотация добавлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Annotation'
+
+  /analysis/{analysis_id}/verify:
+    post:
+      tags:
+        - Анализ изображений
+      summary: Подтвердить результаты анализа
+      description: Врач подтверждает или корректирует автоматические измерения.
+      parameters:
+        - name: analysis_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          description: Результаты подтверждены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResult'
+
+  # ==================== 3D МОДЕЛИ ====================
+  /models/generate:
+    post:
+      tags:
+        - 3D Модели
+      summary: Сгенерировать 3D-модель позвоночника
+      description: |
+        Запускает процесс построения 3D-модели на основе результатов анализа рентген-снимков.
+        Модель строится методом реконструкции по нескольким проекциям.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - analysis_id
+              properties:
+                analysis_id:
+                  type: string
+                  description: ID успешно завершенного анализа.
+                parameters:
+                  type: object
+                  description: Параметры генерации модели (разрешение, степень сглаживания).
+                  properties:
+                    resolution:
+                      type: string
+                      enum: [low, medium, high, ultra]
+                      default: medium
+                    include_vertebrae_numbers:
+                      type: boolean
+                      default: true
+                    include_spinal_cord:
+                      type: boolean
+                      default: false
+                    texture_quality:
+                      type: string
+                      enum: [none, low, high]
+                      default: low
+      responses:
+        '202':
+          description: Запрос на генерацию модели принят.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelJobCreated'
+        '400':
+          description: Неверный `analysis_id` или анализ не содержит достаточных данных.
+
+  /models/{model_id}:
+    get:
+      tags:
+        - 3D Модели
+      summary: Получить информацию о 3D-модели и ссылки для загрузки
+      description: Возвращает метаданные модели и ссылки для скачивания в различных форматах.
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID модели, полученный при генерации.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Успешный запрос.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelMetadata'
+        '404':
+          description: Модель с указанным ID не найдена.
+
+    delete:
+      tags:
+        - 3D Модели
+      summary: Удалить 3D-модель
+      description: Удаляет 3D-модель и все связанные данные.
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '204':
+          description: Модель удалена
+        '404':
+          description: Модель не найдена
+
+  /models/{model_id}/download/{format}:
+    get:
+      tags:
+        - 3D Модели
+      summary: Скачать 3D-модель в указанном формате
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: format
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [gltf, glb, obj, stl, fbx]
+            default: glb
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Файл 3D-модели.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Модель или формат не найден.
+
+  /models/{model_id}/preview:
+    get:
+      tags:
+        - 3D Модели
+      summary: Получить превью модели
+      description: Возвращает изображение превью 3D-модели.
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: angle
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [front, back, left, right, top, bottom]
+            default: front
+        - name: resolution
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [thumbnail, small, medium, large]
+            default: medium
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Изображение превью
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+
+  /models/{model_id}/measurements:
+    get:
+      tags:
+        - 3D Модели
+      summary: Получить измерения модели
+      description: Возвращает детальные измерения 3D-модели (объемы, расстояния, углы).
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Измерения модели
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelMeasurements'
+
+  /models/{model_id}/enhance:
+    post:
+      tags:
+        - 3D Модели
+      summary: Улучшить качество модели
+      description: Применяет алгоритмы сглаживания и оптимизации к существующей модели.
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                smoothing_factor:
+                  type: number
+                  default: 0.5
+                  minimum: 0
+                  maximum: 1
+                decimate_ratio:
+                  type: number
+                  default: 0.7
+                  minimum: 0.1
+                  maximum: 0.9
+                preserve_boundaries:
+                  type: boolean
+                  default: true
+      responses:
+        '202':
+          description: Запрос на улучшение принят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelJobCreated'
+
+  # ==================== СРАВНИТЕЛЬНЫЙ АНАЛИЗ ====================
+  /comparison/patient/{patient_id}:
+    get:
+      tags:
+        - Сравнительный анализ
+      summary: Сравнить исследования пациента во времени
+      description: Возвращает сравнение всех исследований пациента для отслеживания динамики.
+      parameters:
+        - name: patient_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: from_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Сравнительный анализ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComparisonResult'
+
+  /comparison/models:
+    post:
+      tags:
+        - Сравнительный анализ
+      summary: Сравнить две 3D-модели
+      description: Сравнивает две модели и вычисляет разницу в метриках.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model_id_1
+                - model_id_2
+              properties:
+                model_id_1:
+                  type: string
+                model_id_2:
+                  type: string
+                alignment_method:
+                  type: string
+                  enum: [icp, landmarks, automatic]
+                  default: automatic
+      responses:
+        '200':
+          description: Результаты сравнения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelComparison'
+
+  # ==================== ПРОГНОЗЫ И СИМУЛЯЦИИ ====================
+  /simulations/predict:
+    post:
+      tags:
+        - Прогнозы и Симуляции
+      summary: Запустить прогноз развития заболевания
+      description: На основе текущей 3D-модели и исторических данных строит прогноз развития состояния на заданный период.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model_id
+                - timeframe_years
+              properties:
+                model_id:
+                  type: string
+                timeframe_years:
+                  type: number
+                  minimum: 0.5
+                  maximum: 20
+                  default: 5
+                  description: Период прогноза в годах.
+                scenario:
+                  type: string
+                  enum: [conservative, post_surgery, with_rehab, with_brace]
+                  default: conservative
+                  description: Сценарий (консервативное лечение, после операции, с реабилитацией, с корсетом).
+                growth_factor:
+                  type: number
+                  description: Коэффициент роста (для детей/подростков)
+                  minimum: 0.5
+                  maximum: 2.0
+                  default: 1.0
+      responses:
+        '200':
+          description: Успешный запрос. Возвращает ключевые прогнозные метрики.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionResult'
+
+  /simulations/visualize:
+    post:
+      tags:
+        - Прогнозы и Симуляции
+      summary: Создать визуализацию симуляции
+      description: Генерирует анимированную 3D-визуализацию (например, видео) процесса развития состояния или эффекта от вмешательства.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model_id
+                - simulation_type
+              properties:
+                model_id:
+                  type: string
+                simulation_type:
+                  type: string
+                  enum: [progression, surgical_correction, load_test, range_of_motion]
+                parameters:
+                  type: object
+                output_format:
+                  type: string
+                  enum: [mp4, gif, webm]
+                  default: mp4
+                resolution:
+                  type: string
+                  enum: [480p, 720p, 1080p, 4k]
+                  default: 720p
+      responses:
+        '202':
+          description: Запрос на создание визуализации принят.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  visualization_job_id:
+                    type: string
+                  status_url:
+                    type: string
+                    format: uri
+
+  /simulations/virtual-surgery:
+    post:
+      tags:
+        - Прогнозы и Симуляции
+      summary: Виртуальная хирургическая коррекция
+      description: Симулирует хирургическое вмешательство и показывает ожидаемый результат.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model_id
+              properties:
+                model_id:
+                  type: string
+                surgery_type:
+                  type: string
+                  enum: [fusion, vbt, tethering, osteotomy]
+                levels:
+                  type: array
+                  items:
+                    type: string
+                  example: ["T5", "T6", "T7"]
+                correction_angle:
+                  type: number
+                  description: Ожидаемый угол коррекции (градусы)
+      responses:
+        '202':
+          description: Симуляция запущена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  surgery_simulation_id:
+                    type: string
+                  status_url:
+                    type: string
+                    format: uri
+
+  /simulations/biomechanical:
+    post:
+      tags:
+        - Прогнозы и Симуляции
+      summary: Биомеханический анализ
+      description: Анализ нагрузок и напряжений в позвоночнике при различных условиях.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model_id
+              properties:
+                model_id:
+                  type: string
+                load_conditions:
+                  type: array
+                  items:
+                    type: string
+                  enum: [standing, sitting, walking, running, lifting]
+                load_magnitude:
+                  type: number
+                  description: Величина нагрузки в Ньютонах
+      responses:
+        '200':
+          description: Результаты биомеханического анализа
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BiomechanicalAnalysis'
+
+  # ==================== АННОТАЦИИ И КОММЕНТАРИИ ====================
+  /annotations:
+    post:
+      tags:
+        - Аннотации и комментарии
+      summary: Добавить аннотацию
+      description: Добавляет аннотацию к любому ресурсу (анализ, модель, исследование).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationCreate'
+      responses:
+        '201':
+          description: Аннотация создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Annotation'
+
+  /annotations/{annotation_id}:
+    get:
+      tags:
+        - Аннотации и комментарии
+      summary: Получить аннотацию
+      parameters:
+        - name: annotation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Аннотация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Annotation'
+
+    put:
+      tags:
+        - Аннотации и комментарии
+      summary: Обновить аннотацию
+      parameters:
+        - name: annotation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationUpdate'
+      responses:
+        '200':
+          description: Аннотация обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Annotation'
+
+    delete:
+      tags:
+        - Аннотации и комментарии
+      summary: Удалить аннотацию
+      parameters:
+        - name: annotation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '204':
+          description: Аннотация удалена
+
+  # ==================== ЭКСПОРТ И ОТЧЕТЫ ====================
+  /reports/generate:
+    post:
+      tags:
+        - Экспорт и отчеты
+      summary: Сгенерировать отчет
+      description: Создает PDF/HTML отчет с результатами анализа и визуализациями.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - patient_id
+              properties:
+                patient_id:
+                  type: string
+                format:
+                  type: string
+                  enum: [pdf, html, docx]
+                  default: pdf
+                include:
+                  type: array
+                  items:
+                    type: string
+                  enum: [analysis, models, predictions, annotations, comparison]
+                language:
+                  type: string
+                  enum: [ru, en, es, de]
+                  default: ru
+                template:
+                  type: string
+                  enum: [standard, detailed, for_surgeon, for_patient]
+                  default: standard
+      responses:
+        '202':
+          description: Генерация отчета запущена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:
+                    type: string
+                  status_url:
+                    type: string
+                    format: uri
+
+  /reports/{report_id}/download:
+    get:
+      tags:
+        - Экспорт и отчеты
+      summary: Скачать сгенерированный отчет
+      parameters:
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Файл отчета
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/msword:
+              schema:
+                type: string
+                format: binary
+            text/html:
+              schema:
+                type: string
+
+  /export/dicom:
+    post:
+      tags:
+        - Экспорт и отчеты
+      summary: Экспорт результатов в DICOM
+      description: Экспорт измерений и аннотаций обратно в DICOM формат.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - study_id
+              properties:
+                study_id:
+                  type: string
+                include_overlays:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: DICOM файл
+          content:
+            application/dicom:
+              schema:
+                type: string
+                format: binary
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Ваш персональный API ключ. Получить можно в личном кабинете.
+
+  schemas:
+    # Системные схемы
+    SystemStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+        components:
+          type: object
+          properties:
+            database:
+              type: string
+              example: "healthy"
+            ml_service:
+              type: string
+              example: "healthy"
+            storage:
+              type: string
+              example: "healthy"
+            queue:
+              type: string
+              example: "healthy"
+        metrics:
+          type: object
+          properties:
+            active_jobs:
+              type: integer
+            queue_size:
+              type: integer
+            memory_usage:
+              type: number
+
+    # Пациенты и исследования
+    PatientCreate:
+      type: object
+      required:
+        - external_id
+        - birth_date
+        - sex
+      properties:
+        external_id:
+          type: string
+          description: Уникальный идентификатор пациента в вашей системе
+        birth_date:
+          type: string
+          format: date
+        sex:
+          type: string
+          enum: [male, female, other]
+        height:
+          type: number
+          minimum: 30
+          maximum: 250
+        weight:
+          type: number
+          minimum: 2
+          maximum: 300
+        medical_history:
+          type: array
+          items:
+            type: string
+          example: ["сколиоз с 12 лет", "операция 2020"]
+        metadata:
+          type: object
+
+    Patient:
+      type: object
+      properties:
+        id:
+          type: string
+        external_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        birth_date:
+          type: string
+          format: date
+        sex:
+          type: string
+        height:
+          type: number
+        weight:
+          type: number
+        medical_history:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+        studies_count:
+          type: integer
+
+    PatientUpdate:
+      type: object
+      properties:
+        height:
+          type: number
+        weight:
+          type: number
+        medical_history:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+
+    Study:
+      type: object
+      properties:
+        id:
+          type: string
+        patient_id:
+          type: string
+        study_date:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+        analysis_count:
+          type: integer
+        model_count:
+          type: integer
+
+    StudyDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        patient_id:
+          type: string
+        study_date:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+        analyses:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalysisResult'
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelMetadata'
+        annotations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Annotation'
+
+    # Анализ изображений
+    AnalysisJobCreated:
+      type: object
+      properties:
+        analysis_id:
+          type: string
+          example: "anal_abc123def456"
+        status:
+          type: string
+          example: "queued"
+        status_url:
+          type: string
+          format: uri
+          example: "https://api.spinehealth-sim.com/v1/analysis/anal_abc123def456"
+
+    AnalysisResult:
+      type: object
+      properties:
+        analysis_id:
+          type: string
+        status:
+          type: string
+          enum: [completed, failed, processing, verified]
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/PathologyFinding'
+        metrics:
+          $ref: '#/components/schemas/SpineMetrics'
+        processed_images:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Ссылки на размеченные изображения с выделенными контурами и точками.
+        verified_by:
+          type: string
+        verified_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    VerificationRequest:
+      type: object
+      properties:
+        verified_by:
+          type: string
+        verified_at:
+          type: string
+          format: date-time
+        adjustments:
+          type: object
+          properties:
+            cobb_angle:
+              type: number
+            kyphosis_angle:
+              type: number
+            comments:
+              type: string
+
+    PathologyFinding:
+      type: object
+      properties:
+        condition:
+          type: string
+          example: "scoliosis"
+        severity:
+          type: string
+          enum: [none, mild, moderate, severe]
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        location:
+          type: string
+          example: "T5-T12"
+        description:
+          type: string
+          example: "Правосторонняя дуга, угол Кобба 24°"
+        treatment_recommendations:
+          type: array
+          items:
+            type: string
+
+    SpineMetrics:
+      type: object
+      properties:
+        cobb_angle:
+          type: number
+          description: Угол Кобба (градусы).
+        kyphosis_angle:
+          type: number
+          description: Угол грудного кифоза.
+        lordosis_angle:
+          type: number
+          description: Угол поясничного лордоза.
+        vertebral_rotation:
+          type: number
+          description: Степень ротации позвонков (градусы).
+        list_of_vertebrae:
+          type: array
+          items:
+            $ref: '#/components/schemas/VertebraData'
+        pelvic_incidence:
+          type: number
+        pelvic_tilt:
+          type: number
+        sacral_slope:
+          type: number
+
+    VertebraData:
+      type: object
+      properties:
+        level:
+          type: string
+          example: "L4"
+        centroid_x:
+          type: number
+        centroid_y:
+          type: number
+        rotation:
+          type: number
+        height_mm:
+          type: number
+        width_mm:
+          type: number
+
+    # 3D Модели
+    ModelJobCreated:
+      type: object
+      properties:
+        model_id:
+          type: string
+          example: "mod_xyz789uvw000"
+        status_url:
+          type: string
+          format: uri
+
+    ModelMetadata:
+      type: object
+      properties:
+        model_id:
+          type: string
+        status:
+          type: string
+          enum: [generating, completed, failed, enhancing]
+        generated_at:
+          type: string
+          format: date-time
+        based_on_analysis:
+          type: string
+        parameters:
+          type: object
+        download_links:
+          type: object
+          properties:
+            gltf:
+              type: string
+              format: uri
+            glb:
+              type: string
+              format: uri
+            obj:
+              type: string
+              format: uri
+            stl:
+              type: string
+              format: uri
+            fbx:
+              type: string
+              format: uri
+        preview_image_url:
+          type: string
+          format: uri
+        file_size_mb:
+          type: number
+        vertex_count:
+          type: integer
+
+    ModelMeasurements:
+      type: object
+      properties:
+        model_id:
+          type: string
+        volume_cm3:
+          type: number
+        surface_area_cm2:
+          type: number
+        vertebral_heights:
+          type: array
+          items:
+            type: object
+            properties:
+              level:
+                type: string
+              height_mm:
+                type: number
+        intervertebral_distances:
+          type: array
+          items:
+            type: object
+            properties:
+              level:
+                type: string
+              distance_mm:
+                type: number
+        center_of_mass:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            z:
+              type: number
+
+    # Сравнительный анализ
+    ComparisonResult:
+      type: object
+      properties:
+        patient_id:
+          type: string
+        studies:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudyComparison'
+        metrics_trend:
+          type: object
+          properties:
+            cobb_angle:
+              type: array
+              items:
+                type: number
+            kyphosis_angle:
+              type: array
+              items:
+                type: number
+            dates:
+              type: array
+              items:
+                type: string
+                format: date
+        progression_rate:
+          type: number
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    StudyComparison:
+      type: object
+      properties:
+        study_id:
+          type: string
+        study_date:
+          type: string
+          format: date
+        metrics:
+          $ref: '#/components/schemas/SpineMetrics'
+        changes_since_previous:
+          type: object
+          properties:
+            cobb_angle_delta:
+              type: number
+            progression_rate:
+              type: number
+            days_since_previous:
+              type: integer
+
+    ModelComparison:
+      type: object
+      properties:
+        model_1_id:
+          type: string
+        model_2_id:
+          type: string
+        alignment_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        differences:
+          type: object
+          properties:
+            cobb_angle_diff:
+              type: number
+            volume_diff_percent:
+              type: number
+            surface_diff_percent:
+              type: number
+        visualization_url:
+          type: string
+          format: uri
+
+    # Прогнозы и симуляции
+    PredictionResult:
+      type: object
+      properties:
+        simulation_id:
+          type: string
+        initial_metrics:
+          $ref: '#/components/schemas/SpineMetrics'
+        predicted_metrics:
+          $ref: '#/components/schemas/SpineMetrics'
+        risk_factors:
+          type: array
+          items:
+            type: string
+          example: ["Высокая скорость прогрессии", "Риск компрессии нервных корешков L5-S1"]
+        recommendations:
+          type: array
+          items:
+            type: string
+        confidence_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        generated_at:
+          type: string
+          format: date-time
+
+    BiomechanicalAnalysis:
+      type: object
+      properties:
+        analysis_id:
+          type: string
+        model_id:
+          type: string
+        load_conditions:
+          type: array
+          items:
+            type: object
+            properties:
+              condition:
+                type: string
+              max_stress_mpa:
+                type: number
+              max_displacement_mm:
+                type: number
+              risk_zones:
+                type: array
+                items:
+                  type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+        generated_at:
+          type: string
+          format: date-time
+
+    # Аннотации и комментарии
+    AnnotationCreate:
+      type: object
+      required:
+        - resource_type
+        - resource_id
+        - content
+      properties:
+        resource_type:
+          type: string
+          enum: [analysis, model, study]
+        resource_id:
+          type: string
+        content:
+          type: string
+        annotation_type:
+          type: string
+          enum: [comment, finding, recommendation, question]
+          default: comment
+        position:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            z:
+              type: number
+        tags:
+          type: array
+          items:
+            type: string
+
+    Annotation:
+      type: object
+      properties:
+        id:
+          type: string
+        resource_type:
+          type: string
+        resource_id:
+          type: string
+        content:
+          type: string
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        annotation_type:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        position:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            z:
+              type: number
+
+    AnnotationUpdate:
+      type: object
+      properties:
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        annotation_type:
+          type: string
